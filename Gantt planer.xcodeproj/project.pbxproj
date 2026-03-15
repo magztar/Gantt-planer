@@ -115,7 +115,7 @@
 				F99A850F2F645568007F705A /* Sources */,
 				F99A85102F645568007F705A /* Frameworks */,
 				F99A85112F645568007F705A /* Resources */,
-				F99A85402F645569007F705A /* Copy Web App Bundle */,
+				F99A85422F645569007F705A /* Copy Web App Bundle */,
 			);
 			buildRules = (
 			);
@@ -246,7 +246,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		F99A85402F645569007F705A /* Copy Web App Bundle */ = {
+		F99A85422F645569007F705A /* Copy Web App Bundle */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (

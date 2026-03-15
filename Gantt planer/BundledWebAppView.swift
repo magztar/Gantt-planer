@@ -75,14 +75,20 @@ final class Coordinator: NSObject, WKNavigationDelegate {
     }
 
     func loadBundledApp(in webView: WKWebView) {
-        guard let webAppDirectory = Bundle.main.resourceURL?.appendingPathComponent("WebApp", isDirectory: true) else {
-            loadError.wrappedValue = "App-bundlen saknar katalogen WebApp. Kontrollera build-fasen som kopierar webbappen."
+        guard let resourcesURL = Bundle.main.resourceURL else {
+            loadError.wrappedValue = "Kunde inte läsa appens resurskatalog."
+            return
+        }
+
+        let webAppDirectory = resourcesURL.appendingPathComponent("WebApp", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: webAppDirectory.path) else {
+            loadError.wrappedValue = "Katalogen WebApp finns inte i app-bundlen. Kontrollera build-fasen som kopierar webbappen. Förväntad sökväg: \(webAppDirectory.path)"
             return
         }
 
         let indexURL = webAppDirectory.appendingPathComponent("index.html")
         guard FileManager.default.fileExists(atPath: indexURL.path) else {
-            loadError.wrappedValue = "Filen index.html hittades inte i app-bundlen."
+            loadError.wrappedValue = "Filen index.html hittades inte i app-bundlen. Förväntad sökväg: \(indexURL.path)"
             return
         }
 

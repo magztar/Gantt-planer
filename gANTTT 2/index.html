@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <!-- Google Fonts & Material Icons (M3 Standard) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+  
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <title>Gantt-schema</title>
+
+  <!-- Externa bibliotek (Inga ändringar här) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.4.2/chroma.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+  <!-- Huvudinnehåll -->
+  <main class="main-content">
+
+    <!-- Verktygsfält (Top Bar - M3 Style) -->
+    <header class="top-app-bar">
+      <!-- Vänster sida: Arkiv och navigation -->
+      <div class="bar-section start">
+        <div class="dropdown" id="fileDropdown">
+          <!-- Använder en "chip" stil för M3 dropdowns -->
+          <button class="chip-button dropdown-button" id="fileDropdownBtn" type="button"><span class="material-icons-outlined">folder</span> Arkiv</button>
+          <div class="dropdown-content">
+            <button onclick="openFile()"><span class="material-icons-outlined icon-align">file_open</span> Öppna (.json)</button>
+            <div class="dropdown-separator">Importera</div>
+            <button onclick="importExcelFile()"><span class="material-icons-outlined icon-align">upload_file</span> Excel bemanningsplan</button>
+            <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display: none;">
+            <div class="dropdown-separator">Spara</div>
+            <button onclick="saveFile()"><span class="material-icons-outlined icon-align">save</span> Spara</button>
+            <button onclick="saveAsFile()"><span class="material-icons-outlined icon-align">save_as</span> Spara som...</button>
+            <div class="dropdown-separator">Exportera</div>
+            <button onclick="exportToExcel()"><span class="material-icons-outlined icon-align">table_view</span> Excel (.xlsx)</button>
+            <button onclick="exportToMSProject()"><span class="material-icons-outlined icon-align">integration_instructions</span> MS Project (.xml)</button>
+            <button onclick="exportVisibleJSON()"><span class="material-icons-outlined icon-align">visibility</span> Synligt (.json)</button>
+            <button onclick="printView()"><span class="material-icons-outlined icon-align">print</span> Skriv ut</button>
+            <input type="file" id="openFileInput" accept=".json" style="display: none;">
+            <button onclick="showCreatorForm()"><span class="material-icons-outlined icon-align">info</span> Projektinfo</button>
+            <button onclick="showAbout()"><span class="material-icons-outlined icon-align">help_outline</span> Om</button>
+          </div>
+        </div>
+        <button onclick="scrollToToday()" title="Centrera vyn på dagens datum" class="tonal-button">
+            <span class="material-icons-outlined">today</span> Idag
+        </button>
+  <button id="zoomOutBtn" title="Zooma ut" class="icon-button"><span class="material-icons-outlined">remove</span></button>
+  <button id="zoomInBtn" title="Zooma in" class="icon-button"><span class="material-icons-outlined">add</span></button>
+        <label class="m3-checkbox" title="Översikt (kvartal)">
+          <input type="checkbox" id="overviewToggle"> Översikt
+        </label>
+        <button onclick="loadBackup()" title="Återställ från senaste säkerhetskopian" class="icon-button">
+            <span class="material-icons-outlined">restore</span>
+        </button>
+      </div>
+
+      <!-- Mitten: Datum och filter -->
+      <div class="bar-section center">
+        <div class="date-picker">
+            <span class="material-icons-outlined">date_range</span>
+            <input type="date" id="startDate" aria-label="Startdatum">
+            <span>till</span>
+            <input type="date" id="endDate" aria-label="Slutdatum">
+        </div>
+
+        <label class="m3-checkbox">
+            <input type="checkbox" id="showHolidays" checked>
+            Visa helgdagar
+        </label>
+
+    <label class="m3-checkbox">
+      <input type="checkbox" id="showManpower">
+      Visa antal man
+    </label>
+
+        <label class="m3-checkbox" title="Om markerad räknas helger in i timsummeringar">
+          <input type="checkbox" id="countWeekends">
+          Räkna helg (timmar)
+        </label>
+
+        <select id="dateFormat" class="m3-select">
+          <option value="SE" selected>🇸🇪 Sverige</option>
+          <option value="NO">🇳🇴 Norge</option>
+        </select>
+      </div>
+
+      <!-- Höger sida: Sök -->
+      <div class="bar-section end">
+        <div class="search-bar">
+            <span class="material-icons-outlined">search</span>
+            <input type="text" id="searchInput" placeholder="Filtrera aktiviteter...">
+            </div>
+      <button id="toggleMeta" title="Visa/dölj timmar och procent" class="icon-button"><span class="material-icons-outlined">visibility</span></button>
+      <button id="themeToggle" title="Växla tema" class="icon-button"><span class="material-icons-outlined">brightness_6</span></button>
+      </div>
+    </header>
+
+    <!-- Bulk edit bar (visas vid multiselektion) -->
+    <div id="bulkEditBar" class="bulk-edit-bar surface-container" style="display:none;">
+      <div class="bulk-info"><span class="material-icons-outlined bulk-info-icon">select_all</span> <span id="bulkSelectedCount">0</span></div>
+      <input id="bulkNameInput" class="bulk-input" placeholder="Segmentnamn…" />
+      <div class="bulk-color">
+        <input type="color" id="bulkColorInput" class="m3-color-picker" />
+        <select id="bulkColorDropdown" class="popup-color-dropdown"></select>
+      </div>
+      <input id="bulkHoursPerDay" class="bulk-input" type="number" step="0.5" placeholder="Timmar/segment/dag" />
+      <input id="bulkMenPerDay" class="bulk-input" type="number" step="0.5" placeholder="Man/segment/dag" />
+      <button id="bulkApplyBtn" class="filled-button" title="Verkställ på alla valda">Verkställ</button>
+      <button id="bulkCloseBtn" class="icon-button" title="Dölj massredigering"><span class="material-icons-outlined">close</span></button>
+    </div>
+
+    <!-- Gantt-layout -->
+    <div class="gantt-wrapper">
+      <!-- Aktivitetspanel (vänster) -->
+      <div id="activitySidebar" class="activity-sidebar surface-container">
+        <div class="sidebar-header">
+            <h3><span class="material-icons-outlined">task_alt</span> Aktiviteter</h3>
+            <div class="sidebar-controls">
+                <!-- M3 "Segmented Buttons" stil -->
+                <button onclick="addActivity()" class="segmented-button" title="Lägg till aktivitet">
+                  <span class="material-icons-outlined segmented-icon">add_task</span>
+                  <span class="segmented-label">Aktivitet</span>
+                </button>
+                <button onclick="addProject()" class="segmented-button" title="Lägg till projekt">
+                  <span class="material-icons-outlined segmented-icon">workspaces</span>
+                  <span class="segmented-label">Projekt</span>
+                </button>
+        <button onclick="expandAllProjects(true)" class="segmented-button" title="Öppna alla grupper">
+          <span class="material-icons-outlined segmented-icon">unfold_more</span>
+          <span class="segmented-label">Öppna alla</span>
+        </button>
+        <button onclick="expandAllProjects(false)" class="segmented-button" title="Stäng alla grupper">
+          <span class="material-icons-outlined segmented-icon">unfold_less</span>
+          <span class="segmented-label">Stäng alla</span>
+        </button>
+            </div>
+        </div>
+        <div id="activityList" class="activity-list"></div>
+      </div>
+
+  <!-- Resizer mellan sidopanel och gantt -->
+  <div id="sidebarResizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" title="Ändra bredd på sidopanelen"></div>
+
+      <!-- Gantt-schema (mitten) -->
+      <div class="gantt-container surface-container">
+        <div id="gantt"></div>
+      </div>
+
+    <!-- Projektpanel (höger) -->
+    <div id="projectPanel" class="info-panel surface-container">
+        <div class="panel-header">
+        <h4><span class="material-icons-outlined">dashboard_customize</span> Projektöversikt</h4>
+        </div>
+        <div class="panel-actions">
+          <div class="project-selector-row">
+            <select id="projectSelector" aria-label="Välj projekt"></select>
+          </div>
+          <div class="project-settings-row">
+            <button id="projectSettingsBtn" class="icon-button sm" title="Projektinställningar"><span class="material-icons-outlined">settings</span></button>
+          </div>
+        </div>
+          <div class="panel-content">
+            <div id="projectSummary" class="project-summary"></div>
+            <div id="selectedProjectDetails" class="project-details"></div>
+            <div class="print-only" id="creatorInfo"></div>
+          </div>
+    </div>
+
+    <!-- Logo-panel borttagen -->
+
+    <!-- Floating Action Buttons (FAB) för Paneler -->
+    <button id="fabActivityPanel" class="fab fab-left" onclick="toggleActivityPanel()" title="Visa/dölj aktiviteter">
+      <span class="material-icons-outlined fab-icon">menu_open</span>
+      <span class="fab-label">Dölj aktiviteter</span>
+    </button>
+    <button id="fabProjectPanel" class="fab" onclick="toggleProjectPanel()" title="Visa/dölj projektöversikt">
+        <span class="material-icons-outlined fab-icon">dashboard_customize</span>
+        <span class="fab-label">Dölj projekt</span>
+    </button>
+
+  </main>
+</div>
+
+<!-- Popup för redigering (Styrs av CSS) -->
+<div id="activityPopup" class="popup popup-activity" style="display:none;">
+    <div class="popup-header">
+      <div class="popup-header-copy">
+        <div id="popupEyebrow" class="popup-eyebrow">Aktivitet</div>
+        <div id="popupTitle" class="popup-title">Redigera aktivitet</div>
+        <div id="popupSubtitle" class="popup-subtitle">Justera datum, timmar och segmentdetaljer för vald aktivitet.</div>
+        <div id="popupMetaSummary" class="popup-meta-summary"></div>
+      </div>
+      <button type="button" class="icon-button popup-close" onclick="closePopup()" title="Stäng aktivitetspanelen">
+        <span class="material-icons-outlined">close</span>
+      </button>
+    </div>
+    <div class="popup-content">
+      <section class="popup-section popup-section-core">
+        <div class="popup-section-heading">Period och status</div>
+        <div class="popup-grid popup-grid-two">
+          <div class="popup-row">
+              <label for="popupStartDate">Start</label>
+              <input type="date" id="popupStartDate">
+          </div>
+          <div class="popup-row">
+              <label for="popupEndDate">Slut</label>
+              <input type="date" id="popupEndDate">
+          </div>
+        </div>
+        <div class="popup-row popup-row-progress">
+          <label>Färdig (%)</label>
+          <span id="popupCompletedValue" class="popup-value-badge">0%</span>
+        </div>
+        <input type="range" id="popupCompleted" min="0" max="100" value="0" class="m3-slider">
+      </section>
+
+      <section id="popupActivitySettings" class="popup-section">
+        <div class="popup-section-heading">Segmentdetaljer</div>
+        <div class="popup-row">
+          <label for="popupSegmentName">Segmentnamn</label>
+          <input type="text" id="popupSegmentName" placeholder="Namn för detta segment">
+        </div>
+        <div class="popup-row popup-color-row">
+          <label for="popupSegmentColor">Segmentfärg</label>
+          <div class="popup-color-stack">
+            <input type="color" id="popupSegmentColor" class="m3-color-picker">
+            <select id="popupSegmentColorDropdown" class="popup-color-dropdown"></select>
+          </div>
+        </div>
+        <div class="popup-grid popup-grid-two">
+          <div class="popup-row">
+            <label for="popupStartTime">Starttid</label>
+            <input type="time" id="popupStartTime">
+          </div>
+          <div class="popup-row">
+            <label for="popupEndTime">Sluttid</label>
+            <input type="time" id="popupEndTime">
+          </div>
+        </div>
+        <div class="popup-grid popup-grid-two">
+          <div class="popup-row">
+            <label for="popupHoursPerDay">Timmar aktivitet (default)</label>
+            <input type="number" id="popupHoursPerDay" step="0.5">
+          </div>
+          <div class="popup-row">
+            <label for="popupSegmentHoursPerDay">Timmar segment</label>
+            <input type="number" id="popupSegmentHoursPerDay" step="0.5" placeholder="Överskriv per segment">
+          </div>
+        </div>
+        <div class="popup-grid popup-grid-two">
+          <div class="popup-row">
+            <label for="popupSegmentMenPerDay">Antal man (segment)</label>
+            <input type="number" id="popupSegmentMenPerDay" step="0.5" placeholder="Konverteras till timmar">
+          </div>
+          <div id="totalHoursInfo" class="popup-inline-info"></div>
+        </div>
+        <div class="popup-row">
+          <label for="popupInfo">Info</label>
+          <textarea id="popupInfo" rows="3" placeholder="Anteckning för denna aktivitet eller detta segment"></textarea>
+        </div>
+        <div class="popup-row">
+          <label for="popupSegmentResponsibles">Ansvariga (e‑post)</label>
+          <textarea id="popupSegmentResponsibles" rows="2" placeholder="ex: anna@acme.se, bob@acme.se"></textarea>
+        </div>
+      </section>
+
+      <section id="popupGroupSettings" class="popup-section" style="display:none;">
+        <div class="popup-section-heading">Gruppinställningar</div>
+        <div class="popup-row">
+            <label for="popupMaxHours">Max totalt (h)</label>
+            <input type="number" id="popupMaxHours" step="1" placeholder="Valfritt">
+        </div>
+        <div id="groupHoursInfo" class="popup-inline-info"></div>
+        <div class="popup-row popup-color-row">
+          <label for="popupGroupColor">Gruppfärg</label>
+          <div class="popup-color-stack popup-color-single">
+            <input type="color" id="popupGroupColor" class="m3-color-picker">
+          </div>
+        </div>
+        <div class="popup-row popup-color-row" id="projectColorRow" style="display:none;">
+          <label for="popupProjectColor">Projektfärg</label>
+          <div class="popup-color-stack popup-color-single">
+            <input type="color" id="popupProjectColor" class="m3-color-picker">
+          </div>
+        </div>
+      </section>
+
+      <section class="popup-section popup-section-options">
+        <div class="popup-row popup-row-checkbox">
+          <label class="m3-checkbox">
+              <input type="checkbox" id="popupSplitOnWeekend">
+              Dela automatiskt vid helg
+          </label>
+        </div>
+        <div class="popup-helper-text">Tips: Esc stänger popupen. Högerklick på en stapel öppnar samma meny igen.</div>
+      </section>
+    </div>
+    <div class="popup-buttons">
+  <!-- M3 Dialoger prioriterar bekräftande handlingar till höger -->
+        <button id="deleteActivityBtn" class="text-button danger" title="Radera aktiviteten"><span class="material-icons-outlined">delete</span> Radera</button>
+        <button id="splitActivityBtn" class="text-button" title="Dela aktiviteten vid ett specifikt datum"><span class="material-icons-outlined">call_split</span> Dela</button>
+        <button id="savePopupBtn" class="filled-button" title="Spara ändringar"><span class="material-icons-outlined">check</span> Spara</button>
+    </div>
+</div>
+
+<!-- Generisk modal för dialogrutor -->
+<div id="modalBackdrop" class="modal-backdrop" style="display:none;"></div>
+<div id="centeredModal" class="modal" style="display:none;">
+  <div id="modalContent"></div>
+</div>
+
+  <!-- Skript (Inga ändringar) -->
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/core2.js"></script>
+<script src="js/render.js"></script>
+<script src="js/fileParser.js"></script>
+<script>
+// Dropdown Arkiv: öppna/stäng på klick, stäng vid klick utanför eller när musen lämnar menyn
+const fileDropdown = document.getElementById('fileDropdown');
+const fileDropdownBtn = document.getElementById('fileDropdownBtn');
+const dropdownContent = fileDropdown.querySelector('.dropdown-content');
+const topAppBar = document.querySelector('.top-app-bar');
+
+function setFileDropdownOpen(open) {
+  fileDropdown.classList.toggle('open', open);
+  if (topAppBar) {
+    topAppBar.classList.toggle('archive-open', open);
+  }
+}
+
+fileDropdownBtn.addEventListener('click', function(e) {
+  e.stopPropagation();
+  setFileDropdownOpen(!fileDropdown.classList.contains('open'));
+});
+
+// Stäng om man klickar utanför
+document.addEventListener('click', function(e) {
+  if (!fileDropdown.contains(e.target)) {
+    setFileDropdownOpen(false);
+  }
+});
+
+// Håll öppen när musen är över menyn
+dropdownContent.addEventListener('mouseenter', function() {
+  setFileDropdownOpen(true);
+});
+dropdownContent.addEventListener('mouseleave', function() {
+  setFileDropdownOpen(false);
+});
+</script>
+<script src="js/app.js"></script>
+
+<script src="js/scrollToToday.js"></script>
+
+<script>
+  // Wire project settings button to open project info for selected project
+  const projSettingsBtn = document.getElementById('projectSettingsBtn');
+  const projSelector = document.getElementById('projectSelector');
+  if (projSettingsBtn && projSelector) {
+    projSettingsBtn.addEventListener('click', () => {
+      const id = projSelector.value;
+      if (typeof openProjectInfo === 'function') openProjectInfo(id);
+    });
+  }
+</script>
+
+<!-- Extra JS för att hantera den nya layouten -->
+<script>
+    function toggleMeta() {
+        document.body.classList.toggle('hide-meta');
+        const btn = document.getElementById('toggleMeta');
+        const icon = btn.querySelector('span');
+        const isHidden = document.body.classList.contains('hide-meta');
+        
+        if (isHidden) {
+            icon.textContent = 'visibility_off';
+            btn.title = "Visa timmar och procent";
+        } else {
+            icon.textContent = 'visibility';
+            btn.title = "Dölj timmar och procent";
+        }
+        localStorage.setItem('hideMeta', isHidden);
+    }
+
+    // Initiera vid laddning
+    document.addEventListener('DOMContentLoaded', () => {
+        // Återställ meta-visibility
+        if (localStorage.getItem('hideMeta') === 'true') {
+            document.body.classList.add('hide-meta');
+            const btn = document.getElementById('toggleMeta');
+            if (btn) {
+                btn.querySelector('span').textContent = 'visibility_off';
+                btn.title = "Visa timmar och procent";
+            }
+        }
+        
+        // Setup toggleMeta event
+        const metaBtn = document.getElementById('toggleMeta');
+        if (metaBtn) metaBtn.onclick = toggleMeta;
+    });
+</script>
+
+</body>
+</html>
